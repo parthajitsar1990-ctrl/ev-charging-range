@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EV Range Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: white;
+      padding: 20px;
+      max-width: 420px;
+      margin: auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+    }
+
+    label {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    input, select {
+      width: 100%;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+    }
+
+    input[type=range] {
+      padding: 0;
+    }
+
+    .value {
+      text-align: right;
+      font-size: 12px;
+      color: #cbd5f5;
+    }
+
+    .result {
+      text-align: center;
+      font-size: 28px;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+
+    .sub {
+      text-align: center;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>⚡ EV Range</h1>
+
+<div class="card">
+  <label>Battery (Wh)</label>
+  <input type="number" id="battery" value="42000">
+</div>
+
+<div class="card">
+  <label>AEC (Wh/km)</label>
+  <input type="range" id="aec" min="100" max="250" value="150" oninput="update()">
+  <div class="value" id="aecVal">150 Wh/km</div>
+</div>
+
+<div class="card">
+  <label>SOC Usage (%)</label>
+  <input type="range" id="soc" min="50" max="100" value="80" oninput="update()">
+  <div class="value" id="socVal">80%</div>
+</div>
+
+<div class="card">
+  <label>Driving Style</label>
+  <select id="drive" onchange="update()">
+    <option value="0.9">Smooth</option>
+    <option value="0.85" selected>Normal</option>
+    <option value="0.75">Aggressive</option>
+    <option value="0.7">Highway Fast</option>
+  </select>
+</div>
+
+<div class="result" id="range">-- km</div>
+<div class="sub">Estimated real-world range</div>
+
+<script>
+function update() {
+  let battery = document.getElementById("battery").value;
+  let aec = document.getElementById("aec").value;
+  let soc = document.getElementById("soc").value;
+  let drive = document.getElementById("drive").value;
+
+  document.getElementById("aecVal").innerText = aec + " Wh/km";
+  document.getElementById("socVal").innerText = soc + "%";
+
+  let range = (battery * (soc/100) / aec) * drive;
+
+  document.getElementById("range").innerText =
+    Math.round(range) + " km";
+}
+
+// Initial run
+update();
+</script>
+
+</body>
+</html>
