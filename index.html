@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV Smart Planner</title>
+
+<style>
+:root {
+  --bg:#0f172a;
+  --card:#1e293b;
+  --accent:#22c55e;
+  --text:#e2e8f0;
+  --muted:#94a3b8;
+}
+
+body {
+  margin:0;
+  font-family:-apple-system;
+  background:var(--bg);
+  color:var(--text);
+  padding:16px;
+}
+
+.card {
+  background:var(--card);
+  padding:16px;
+  border-radius:16px;
+  margin-bottom:14px;
+}
+
+.label { font-size:13px; color:var(--muted); }
+
+input, select {
+  width:100%;
+  padding:10px;
+  border-radius:10px;
+  border:none;
+  margin:6px 0 12px;
+}
+
+.resultBox {
+  background:#020617;
+  border-radius:12px;
+  padding:12px;
+  text-align:center;
+  margin-top:10px;
+}
+
+.big { font-size:24px; color:var(--accent); font-weight:bold; }
+
+.timeline {
+  border-left:2px solid #334155;
+  padding-left:10px;
+}
+
+.event {
+  background:#020617;
+  padding:10px;
+  border-radius:10px;
+  margin-bottom:8px;
+}
+
+.socBar {
+  height:10px;
+  background:#1e293b;
+  border-radius:10px;
+}
+
+.socFill {
+  height:100%;
+  background:#22c55e;
+  width:0%;
+}
+</style>
+</head>
+
+<body>
+
+<h2>⚡ EV Smart Planner</h2>
+
+<!-- SMART CONDITIONS -->
+<div class="card">
+<h3>⚙️ Driving Conditions</h3>
+
+<div class="label">Speed</div>
+<select id="speed">
+<option value="50">City</option>
+<option value="70" selected>Mixed</option>
+<option value="90">Highway</option>
+<option value="110">Fast</option>
+</select>
+
+<div class="label">AC Usage</div>
+<select id="ac">
+<option value="off">Off</option>
+<option value="normal" selected>Normal</option>
+<option value="heavy">Heavy</option>
+</select>
+
+<div class="label">Terrain</div>
+<select id="terrain">
+<option value="flat">Flat</option>
+<option value="mild">Mild</option>
+<option value="hilly">Hilly</option>
+</select>
+
+</div>
+
+<!-- RANGE -->
+<div class="card">
+<h3>Range</h3>
+
+<input type="range" id="aec" min="100" max="220" value="150">
+<div id="aecVal"></div>
+
+<input type="range" id="soc" min="50" max="100" value="80">
+<div id="socVal"></div>
+
+<div class="resultBox">
+<div class="big" id="range"></div>
+</div>
+</div>
+
+<!-- TRIP -->
+<div class="card">
+<h3>🚗 Trip Planner</h3>
+
+<div class="label">Trip Distance</div>
+<input type="number" id="tripDist" value="400">
+
+<div class="label">Start SOC</div>
+<input type="range" id="startSoc" min="50" max="100" value="90">
+<div id="startSocVal"></div>
+
+<div class="socBar"><div class="socFill" id="socFill"></div></div>
+
+<div class="label">Charger Type</div>
+<select id="charger">
+<option value="7">Home / Slow (7 kW)</option>
+<option value="15">AC Fast (15 kW)</option>
+<option value="30" selected>DC Fast (30 kW)</option>
+<option value="50">DC Fast+ (50 kW)</option>
+</select>
+
+<div class="resultBox">
+<div class="big" id="stops"></div>
+<div>Stops</div>
+</div>
+
+<div class="resultBox">
+<div class="big" id="chargeTime"></div>
+<div>Total Charging Time</div>
+</div>
+
+<div class="timeline" id="timeline"></div>
+</div>
+
+<script>
+
+let battery = 42; // kWh
+
+function getAEC(){
+let base = +aec.value;
+let f=1;
+
+if(speed.value>=100) f*=1.25;
+else if(speed.value>=80) f*=1.15;
+
+if(ac.value==="heavy") f*=1.15;
+if(ac.value==="normal") f*=1.05;
+
+if(terrain.value==="hilly") f*=1.2;
+if(terrain.value==="mild") f*=1.1;
+
+return base*f;
+}
+
+function update(){
+
+let aecValCalc = getAEC();
+aecVal.innerText=Math.round(aecValCalc)+" Wh/km";
+socVal.innerText=soc.value+"%";
+
+let range = (battery*(soc.value/100)/(aecValCalc/1000))*0.85;
+rangeEl.innerText=Math.round(range)+" km";
+
+planTrip(aecValCalc);
+}
+
+function planTrip(aec){
+
+let dist=+tripDist.value;
+let start=+startSoc.value;
+let chargeSpeed=+charger.value;
+
+startSocVal.innerText=start+"%";
+socFill.style.width=start+"%";
+
+let fullRange = battery/(aec/1000);
+let usable = fullRange*(start/100);
+
+let remain=dist;
+let stops=0;
+let totalTime=0;
+
+timeline.innerHTML="";
+
+function add(t){
+let d=document.createElement("div");
+d.className="event";
+d.innerText=t;
+timeline.appendChild(d);
+}
+
+add("Start "+start+"%");
+
+while(remain>usable){
+remain-=usable;
+stops++;
+
+let energy = battery*0.7;
+let time = (energy/chargeSpeed)*60;
+
+totalTime+=time;
+
+add("Drive "+Math.round(usable)+" km");
+add("Charge ~"+Math.round(time)+" min");
+
+usable=fullRange*0.7;
+}
+
+add("Final "+Math.round(remain)+" km");
+add("Arrive");
+
+stopsEl.innerText=stops;
+chargeTime.innerText=Math.round(totalTime)+" min";
+}
+
+document.querySelectorAll("input,select").forEach(e=>{
+e.addEventListener("input",update);
+});
+
+let aecVal=document.getElementById("aecVal");
+let socVal=document.getElementById("socVal");
+let rangeEl=document.getElementById("range");
+let stopsEl=document.getElementById("stops");
+let chargeTime=document.getElementById("chargeTime");
+
+update();
+
+</script>
+
+</body>
+</html>
