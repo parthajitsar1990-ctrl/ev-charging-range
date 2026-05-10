@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>EV Smart Planner</title>
+
+<style>
+:root {
+  --bg:#0f172a;
+  --card:#1e293b;
+  --accent:#22c55e;
+  --text:#e2e8f0;
+  --muted:#94a3b8;
+}
+
+body {
+  margin:0;
+  font-family:-apple-system, BlinkMacSystemFont;
+  background:var(--bg);
+  color:var(--text);
+  padding:16px;
+}
+
+h1 {
+  text-align:center;
+  margin-bottom:20px;
+}
+
+.card {
+  background:var(--card);
+  padding:16px;
+  border-radius:16px;
+  margin-bottom:14px;
+}
+
+.label {
+  font-size:13px;
+  color:var(--muted);
+}
+
+input {
+  width:100%;
+  padding:10px;
+  border-radius:10px;
+  border:none;
+  margin:6px 0 12px;
+}
+
+input[type=range] {
+  padding:0;
+}
+
+.value {
+  float:right;
+  font-size:12px;
+}
+
+.resultBox {
+  background:#020617;
+  border-radius:12px;
+  padding:12px;
+  text-align:center;
+  margin-top:10px;
+}
+
+.big {
+  font-size:26px;
+  color:var(--accent);
+  font-weight:bold;
+}
+
+.small {
+  font-size:12px;
+  color:var(--muted);
+}
+
+/* Timeline */
+.timeline {
+  border-left:2px solid #334155;
+  padding-left:10px;
+  margin-top:10px;
+}
+
+.event {
+  background:#020617;
+  padding:10px;
+  border-radius:10px;
+  margin-bottom:8px;
+  animation:fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from {opacity:0; transform:translateY(8px);}
+  to {opacity:1; transform:translateY(0);}
+}
+
+/* SOC Bar */
+.socBar {
+  height:10px;
+  background:#1e293b;
+  border-radius:10px;
+  overflow:hidden;
+  margin-top:8px;
+}
+
+.socFill {
+  height:100%;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  width:0%;
+  transition:width 0.6s ease;
+}
+</style>
+</head>
+
+<body>
+
+<h1>⚡ EV Smart Planner</h1>
+
+<div class="card">
+  <div class="label">Efficiency (AEC)</div>
+  <input type="range" id="aec" min="100" max="220" value="150">
+  <div class="value" id="aecVal"></div>
+
+  <div class="label">SOC Usage</div>
+  <input type="range" id="soc" min="50" max="100" value="80">
+  <div class="value" id="socVal"></div>
+
+  <div class="resultBox">
+    <div class="big" id="range"></div>
+    <div class="small">Estimated Range</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>🚗 Trip Planner</h3>
+
+  <div class="label">Trip Distance (km)</div>
+  <input type="number" id="tripDist" value="400">
+
+  <div class="label">Start SOC</div>
+  <input type="range" id="startSoc" min="50" max="100" value="90">
+  <div class="value" id="startSocVal"></div>
+
+  <div class="socBar">
+    <div class="socFill" id="socFill"></div>
+  </div>
+
+  <div class="resultBox">
+    <div class="big" id="stops"></div>
+    <div class="small">Charging Stops</div>
+  </div>
+
+  <div class="timeline" id="timeline"></div>
+</div>
+
+<div class="card">
+  <h3>💰 Cost & Savings</h3>
+
+  <div class="label">Trip Distance</div>
+  <input type="number" id="distance" value="100">
+
+  <div class="label">Electricity ₹/kWh</div>
+  <input type="number" id="cost" value="8">
+
+  <div class="label">Petrol ₹/L</div>
+  <input type="number" id="petrol" value="100">
+
+  <div class="label">Mileage km/L</div>
+  <input type="number" id="mileage" value="15">
+
+  <div class="resultBox">
+    <div class="big" id="tripCost"></div>
+    <div class="small">Trip Cost</div>
+  </div>
+
+  <div class="resultBox">
+    <div class="big" id="savings"></div>
+    <div class="small">Savings vs Petrol</div>
+  </div>
+</div>
+
+<script>
+let battery = 42000;
+
+function update() {
+
+let aec = document.getElementById("aec").value;
+let soc = document.getElementById("soc").value;
+let distance = document.getElementById("distance").value;
+let cost = document.getElementById("cost").value;
+let petrol = document.getElementById("petrol").value;
+let mileage = document.getElementById("mileage").value;
+
+document.getElementById("aecVal").innerText = aec + " Wh/km";
+document.getElementById("socVal").innerText = soc + "%";
+
+// Range
+let range = (battery*(soc/100)/aec)*0.85;
+document.getElementById("range").innerText = Math.round(range) + " km";
+
+// Cost
+let tripCost = ((distance*aec)/1000)*cost;
+document.getElementById("tripCost").innerText = "₹" + Math.round(tripCost);
+
+// Savings
+let petrolPerKm = petrol / mileage;
+let evPerKm = (aec/1000)*cost;
+
+let savings = (petrolPerKm - evPerKm)*distance;
+document.getElementById("savings").innerText = "₹" + Math.round(savings);
+
+planTrip();
+}
+
+function planTrip() {
+
+let dist = document.getElementById("tripDist").value;
+let startSoc = document.getElementById("startSoc").value;
+
+document.getElementById("startSocVal").innerText = startSoc + "%";
+document.getElementById("socFill").style.width = startSoc + "%";
+
+let batteryKWh = 42;
+let aec = document.getElementById("aec").value / 1000;
+
+let fullRange = batteryKWh / aec;
+let usable = fullRange*(startSoc/100);
+
+let remaining = dist;
+let stops = 0;
+
+let timeline = document.getElementById("timeline");
+timeline.innerHTML = "";
+
+function add(text) {
+  let div = document.createElement("div");
+  div.className="event";
+  div.innerText=text;
+  timeline.appendChild(div);
+}
+
+add("🚀 Start at " + startSoc + "%");
+
+while(remaining > usable){
+  remaining -= usable;
+  stops++;
+
+  add("🛣 Drive " + Math.round(usable) + " km");
+  add("⚡ Charge to 80%");
+
+  usable = fullRange*0.7;
+}
+
+add("🏁 Final " + Math.round(remaining) + " km");
+add("✅ Arrive");
+
+document.getElementById("stops").innerText = stops;
+}
+
+document.querySelectorAll("input").forEach(el=>{
+  el.addEventListener("input",update);
+});
+
+update();
+</script>
+
+</body>
+</html>
