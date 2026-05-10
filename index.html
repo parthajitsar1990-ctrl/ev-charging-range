@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV Smart Planner</title>
+
+<style>
+:root {
+  --bg:#0f172a;
+  --card:#1e293b;
+  --accent:#22c55e;
+  --text:#e2e8f0;
+  --muted:#94a3b8;
+}
+
+body {
+  margin:0;
+  font-family:-apple-system, BlinkMacSystemFont;
+  background:var(--bg);
+  color:var(--text);
+  padding:16px;
+}
+
+h1 {
+  font-size:20px;
+  margin-bottom:16px;
+}
+
+.card {
+  background:var(--card);
+  padding:16px;
+  border-radius:16px;
+  margin-bottom:16px;
+}
+
+.label {
+  font-size:13px;
+  color:var(--muted);
+  margin-top:10px;
+}
+
+input, select {
+  width:100%;
+  padding:12px;
+  border-radius:12px;
+  border:none;
+  margin-top:6px;
+  font-size:15px;
+}
+
+.resultBox {
+  background:#020617;
+  padding:14px;
+  border-radius:14px;
+  text-align:center;
+  margin-top:12px;
+}
+
+.big {
+  font-size:22px;
+  color:var(--accent);
+  font-weight:600;
+}
+
+.small {
+  font-size:12px;
+  color:var(--muted);
+}
+
+.timeline {
+  border-left:2px solid #334155;
+  padding-left:12px;
+  margin-top:12px;
+}
+
+.event {
+  background:#020617;
+  padding:10px;
+  border-radius:10px;
+  margin-bottom:8px;
+}
+
+.row {
+  display:flex;
+  gap:10px;
+}
+
+.row > div {
+  flex:1;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>⚡ EV Smart Planner</h1>
+
+<!-- START TIME -->
+<div class="card">
+<h3>Trip Start</h3>
+
+<div class="row">
+<div>
+<div class="label">Start Date</div>
+<input type="date" id="startDate">
+</div>
+
+<div>
+<div class="label">Start Time</div>
+<input type="time" id="startTime">
+</div>
+</div>
+</div>
+
+<!-- DRIVING CONDITIONS -->
+<div class="card">
+<h3>Driving Conditions</h3>
+
+<div class="label">Average Speed</div>
+<select id="speed">
+<option value="50">City (50 km/h)</option>
+<option value="70" selected>Mixed (70 km/h)</option>
+<option value="90">Highway (90 km/h)</option>
+<option value="110">Fast (110 km/h)</option>
+</select>
+
+<div class="label">AC Usage</div>
+<select id="ac">
+<option value="off">Off</option>
+<option value="normal" selected>Normal</option>
+<option value="heavy">Heavy</option>
+</select>
+
+<div class="label">Terrain</div>
+<select id="terrain">
+<option value="flat">Flat</option>
+<option value="mild">Mild</option>
+<option value="hilly">Hilly</option>
+</select>
+</div>
+
+<!-- TRIP -->
+<div class="card">
+<h3>Trip Planner</h3>
+
+<div class="label">Trip Distance (km)</div>
+<input type="number" id="tripDist" value="400">
+
+<div class="label">Starting Battery (%)</div>
+<input type="range" id="startSoc" min="50" max="100" value="90">
+<div id="startSocVal" class="small"></div>
+
+<div class="label">Charger Type</div>
+<select id="charger">
+<option value="7">Home (7 kW)</option>
+<option value="15">AC Fast (15 kW)</option>
+<option value="30" selected>DC Fast (30 kW)</option>
+<option value="50">DC Fast+ (50 kW)</option>
+</select>
+
+<div class="label">Route Preference</div>
+<select id="mode">
+<option value="fast">⚡ Fastest Route</option>
+<option value="cheap">💰 Cheapest Route</option>
+</select>
+
+<div class="resultBox">
+<div class="big" id="stops"></div>
+<div class="small">Charging Stops</div>
+</div>
+
+<div class="resultBox">
+<div class="big" id="chargeTime"></div>
+<div class="small">Charging Time</div>
+</div>
+
+<div class="resultBox">
+<div class="big" id="driveTime"></div>
+<div class="small">Driving Time</div>
+</div>
+
+<div class="resultBox">
+<div class="big" id="totalTime"></div>
+<div class="small">Total Trip Time</div>
+</div>
+
+<div class="resultBox">
+<div class="big" id="eta"></div>
+<div class="small">Arrival Time</div>
+</div>
+
+</div>
+
+<!-- TIMELINE -->
+<div class="card">
+<h3>Trip Timeline</h3>
+<div id="timeline" class="timeline"></div>
+</div>
+
+<script>
+
+let battery = 42;
+
+function getAEC(){
+let base=150;
+let f=1;
+
+if(speed.value>=100) f*=1.25;
+else if(speed.value>=80) f*=1.15;
+
+if(ac.value==="heavy") f*=1.15;
+if(ac.value==="normal") f*=1.05;
+
+if(terrain.value==="hilly") f*=1.2;
+if(terrain.value==="mild") f*=1.1;
+
+return base*f;
+}
+
+function format(min){
+let h=Math.floor(min/60);
+let m=Math.round(min%60);
+return h+"h "+m+"m";
+}
+
+function plan(){
+
+let dist=+tripDist.value;
+let start=+startSoc.value;
+let speedVal=+speed.value;
+let chargerPower=+charger.value;
+let modeVal=mode.value;
+
+startSocVal.innerText=start+"%";
+
+let aec=getAEC();
+let fullRange=battery/(aec/1000);
+
+// strategy
+let chargeCap=0.7;
+let chargeSpeed=chargerPower;
+
+if(modeVal==="fast"){
+chargeCap=0.8;
+chargeSpeed=Math.max(chargerPower,30);
+}
+if(modeVal==="cheap"){
+chargeCap=0.6;
+chargeSpeed=Math.min(chargerPower,15);
+}
+
+let usable=fullRange*(start/100);
+let remain=dist;
+
+let stops=0;
+let chargeTimeTotal=0;
+let driveTimeTotal=0;
+let cumulative=0;
+
+timeline.innerHTML="";
+
+function add(text){
+let d=document.createElement("div");
+d.className="event";
+d.innerText=text;
+timeline.appendChild(d);
+}
+
+add("🚀 Trip Start");
+
+while(remain>usable){
+
+let drive=(usable/speedVal)*60;
+driveTimeTotal+=drive;
+cumulative+=drive;
+
+add("🛣 Drive "+Math.round(usable)+" km • "+format(cumulative));
+
+remain-=usable;
+stops++;
+
+let energy=battery*chargeCap;
+let chargeTime=(energy/chargeSpeed)*60;
+
+chargeTimeTotal+=chargeTime;
+cumulative+=chargeTime;
+
+add("⚡ Charge • "+format(cumulative));
+
+usable=fullRange*chargeCap;
+}
+
+let finalDrive=(remain/speedVal)*60;
+driveTimeTotal+=finalDrive;
+cumulative+=finalDrive;
+
+add("🏁 Final "+Math.round(remain)+" km • "+format(cumulative));
+add("✅ Arrive • "+format(cumulative));
+
+let total=driveTimeTotal+chargeTimeTotal;
+
+// ETA calculation
+let dateInput = document.getElementById("startDate").value;
+let timeInput = document.getElementById("startTime").value;
+
+let startDateTime;
+
+if(dateInput && timeInput){
+startDateTime = new Date(dateInput + "T" + timeInput);
+} else {
+startDateTime = new Date();
+}
+
+let etaDate = new Date(startDateTime.getTime() + total*60000);
+
+let etaStr = etaDate.toLocaleString([], {
+day:'numeric', month:'short',
+hour:'2-digit', minute:'2-digit'
+});
+
+// outputs
+stops.innerText=stops;
+chargeTime.innerText=Math.round(chargeTimeTotal)+" min";
+driveTime.innerText=Math.round(driveTimeTotal)+" min";
+totalTime.innerText=Math.round(total)+" min";
+eta.innerText=etaStr;
+
+}
+
+document.querySelectorAll("input,select").forEach(e=>{
+e.addEventListener("input",plan);
+});
+
+plan();
+
+</script>
+
+</body>
+</html>
